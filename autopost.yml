@@ -1,0 +1,77 @@
+name: Zemljište.hr – dnevna objava
+
+on:
+  schedule:
+    - cron: "17 8 * * *"   # UTC → 09:17 zimi / 10:17 ljeti (Zagreb)
+  workflow_dispatch:        # ručno pokretanje: Actions → Run workflow
+    inputs:
+      type:
+        description: "Vrsta (prazno = po rasporedu)"
+        type: choice
+        options: ["", listing, blog, feature_carousel, feature_reel]
+        default: ""
+      feature:
+        description: "Alat (opcionalno), npr. kalkulator-kig-kis"
+        required: false
+      dry_run:
+        description: "Samo test – ništa ne objavljuj"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autopost
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalacija
+        run: |
+          sudo apt-get install -y -qq fonts-dejavu-core
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Objava
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
+          META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          NOTIFY_TO: ${{ secrets.NOTIFY_TO }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+        run: |
+          ARGS=""
+          [ -n "${{ inputs.type }}" ] && ARGS="$ARGS --type ${{ inputs.type }}"
+          [ -n "${{ inputs.feature }}" ] && ARGS="$ARGS --feature ${{ inputs.feature }}"
+          python main.py $ARGS
+
+      - name: Spremi rezultate (video, slike, tekstovi – 7 dana)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: objava-${{ github.run_number }}
+          path: out/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Zapamti što je objavljeno
+        if: always()
+        run: |
+          git config user.name "zemljiste-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add state/state.json
+          git diff --cached --quiet || (git commit -m "Objava $(date +%F)" && git push)
