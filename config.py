@@ -38,7 +38,7 @@ LISTING_LOOKBACK_DAYS = int(env("LISTING_LOOKBACK_DAYS", "21"))
 MAX_IMAGES = int(env("MAX_IMAGES", "8"))
 
 # --- Gemini ---------------------------------------------------------------
-GEMINI_MODEL = env("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = env("GEMINI_MODEL", "gemini-3.8-flash")
 
 # --- Glas i video ---------------------------------------------------------
 TTS_VOICE = env("TTS_VOICE", "hr-HR-SreckoNeural")  # ženski: hr-HR-GabrijelaNeural
